@@ -10,7 +10,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# --- Keep-Alive Web Server for Hosting (e.g., Render) ---
+# --- 1. Flask Web Server Setup (For Render Hosting) ---
 web_app = Flask(__name__)
 
 @web_app.route('/')
@@ -21,10 +21,15 @@ def start_flask_server():
     port = int(os.environ.get("PORT", 8080))
     serve(web_app, host="0.0.0.0", port=port)
 
-# --- Configuration ---
-TOKEN = os.getenv("RESOURCE_BOT_TOKEN")
+# --- 2. Environment Variables & Safety Checks ---
+# Reads RESOURCE_BOT_TOKEN first; falls back to BOT_TOKEN if not found
+TOKEN = os.getenv("RESOURCE_BOT_TOKEN") or os.getenv("BOT_TOKEN")
 
-# --- UI Menus ---
+if not TOKEN:
+    print("❌ FATAL: Bot token is completely missing from environment variables!")
+    exit(1)
+
+# --- 3. UI Keyboards & Navigation ---
 def main_menu_keyboard():
     keyboard = [
         [InlineKeyboardButton("📊 Indicators & Source Code", callback_data="menu_indicators")],
@@ -34,7 +39,7 @@ def main_menu_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# --- Handlers ---
+# --- 4. Bot Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         f"👋 **Welcome {update.effective_user.first_name} to E11 Lab Resources!**\n\n"
@@ -46,7 +51,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    # --- 1. INDICATORS MENU ---
+    # --- INDICATORS MENU ---
     if query.data == "menu_indicators":
         text = (
             "📊 **E11 Lab Indicators**\n\n"
@@ -61,7 +66,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
 
-    # --- 2. COURSES MENU ---
+    # --- COURSES MENU ---
     elif query.data == "menu_courses":
         text = (
             "🎓 **E11 Trading Academy**\n\n"
@@ -74,13 +79,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
 
-    # --- 3. STRATEGIES MENU ---
+    # --- STRATEGIES MENU ---
     elif query.data == "menu_strategies":
         text = (
             "📈 **Core Trading Strategies**\n\n"
             "1. **Liquidity Sweep & Mitigation:** Trade institutional key levels.\n"
             "2. **Session Breakout Strategy:** High-probability London/NY open plays.\n\n"
-            "Click below to view the detailed strategy PDFs or guides:"
+            "Click below to view the detailed strategy guides:"
         )
         keyboard = [
             [InlineKeyboardButton("📄 Read Liquidity Guide", url="https://t.me/E11LabCommunity")],
@@ -88,18 +93,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
 
-    # --- BACK BUTTON ---
+    # --- BACK TO MAIN MENU ---
     elif query.data == "main_menu":
         text = "Select a resource category below:"
         await query.message.edit_text(text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
 
-# --- App Execution ---
+# --- 5. Application Launch ---
 if __name__ == "__main__":
+    # Start Web Server Thread for Render Keep-Alive
     threading.Thread(target=start_flask_server, daemon=True).start()
-    
+
+    # Build Telegram Bot
+    print("🚀 E11 Resource Bot initializing...")
     app = ApplicationBuilder().token(TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
-    
-    print("🚀 E11 Resource Bot is running...")
+
+    # Run Polling Loop
     app.run_polling(drop_pending_updates=True)
